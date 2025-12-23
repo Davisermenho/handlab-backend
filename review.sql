@@ -11,7 +11,7 @@ INSERT INTO alembic_version (version_num) VALUES ('fc3abb97b24a') RETURNING alem
 
 -- Running upgrade fc3abb97b24a -> f04026216180
 
--- 1) UUID (se ainda não tiver)
+-- 1) UUID (se ainda nÒo tiver)
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 2) helper para updated_at
@@ -41,7 +41,7 @@ CREATE TRIGGER trg_athletes_updated_at
 BEFORE UPDATE ON athletes
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- 4) sessões de treino
+-- 4) sess§es de treino
 CREATE TABLE IF NOT EXISTS training_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS training_sessions (
   session_at timestamptz NOT NULL,
   main_objective text,
   planned_load int,          -- ex: carga planejada (0-10 ou outra escala)
-  actual_load_avg int,       -- ex: média realizada
+  actual_load_avg int,       -- ex: mÚdia realizada
   group_climate int,         -- ex: 1-5
   highlight text,
   next_corrections text,
@@ -62,7 +62,7 @@ CREATE TRIGGER trg_training_sessions_updated_at
 BEFORE UPDATE ON training_sessions
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- 5) presença + pós-treino (carga interna)
+-- 5) presenþa + p¾s-treino (carga interna)
 CREATE TABLE IF NOT EXISTS attendance (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id uuid NOT NULL REFERENCES training_sessions(id) ON DELETE CASCADE,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   created_by_membership_id uuid NOT NULL,
   status text NOT NULL CHECK (status IN ('presente','ausente','medico','lesionada')),
   rpe int CHECK (rpe BETWEEN 0 AND 10),
-  internal_load int,         -- ex: rpe * minutos (se você usar)
+  internal_load int,         -- ex: rpe * minutos (se vocÛ usar)
   notes text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -95,7 +95,7 @@ UPDATE alembic_version SET version_num='f04026216180' WHERE alembic_version.vers
 
 -- Running upgrade f04026216180 -> 9337cde7fe9e
 
--- wellness pré-treino: 1 registro por atleta por sessão
+-- wellness prÚ-treino: 1 registro por atleta por sessÒo
 
     CREATE TABLE IF NOT EXISTS wellness_pre (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -122,7 +122,7 @@ UPDATE alembic_version SET version_num='f04026216180' WHERE alembic_version.vers
       updated_at timestamptz NOT NULL DEFAULT now()
     );
 
-    -- trigger updated_at (reaplicável)
+    -- trigger updated_at (reaplicßvel)
     DROP TRIGGER IF EXISTS trg_wellness_pre_updated_at ON wellness_pre;
 
     CREATE TRIGGER trg_wellness_pre_updated_at
@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS wellness_post (
 
       rpe int CHECK (rpe BETWEEN 0 AND 10),
 
-      -- você pode preencher manualmente OU calcular no app/consulta
+      -- vocÛ pode preencher manualmente OU calcular no app/consulta
       internal_load int CHECK (internal_load >= 0),
 
       fatigue_after int CHECK (fatigue_after BETWEEN 0 AND 10),
@@ -194,7 +194,7 @@ UPDATE alembic_version SET version_num='ace919bc9d4f' WHERE alembic_version.vers
 -- Running upgrade ace919bc9d4f -> ae379329cc50
 
 -- 1) Migra dados existentes (se houver) de attendance -> wellness_post
-    -- só insere se não existir ainda um wellness_post para (session_id, athlete_id)
+    -- s¾ insere se nÒo existir ainda um wellness_post para (session_id, athlete_id)
     INSERT INTO wellness_post (
       session_id,
       athlete_id,
@@ -221,7 +221,7 @@ UPDATE alembic_version SET version_num='ace919bc9d4f' WHERE alembic_version.vers
               AND wp.athlete_id = a.athlete_id
        );
 
-    -- 2) Remove as colunas da attendance (agora ela fica só presença)
+    -- 2) Remove as colunas da attendance (agora ela fica s¾ presenþa)
     ALTER TABLE attendance DROP COLUMN IF EXISTS rpe;
     ALTER TABLE attendance DROP COLUMN IF EXISTS internal_load;;
 
@@ -740,7 +740,7 @@ UPDATE alembic_version SET version_num='d00bc0ffee0b' WHERE alembic_version.vers
     BEFORE UPDATE ON persons
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-    -- 2) users -> referenciar persons + superadmin único
+    -- 2) users -> referenciar persons + superadmin ·nico
     ALTER TABLE users ADD COLUMN IF NOT EXISTS person_id uuid DEFAULT gen_random_uuid();
     ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin boolean NOT NULL DEFAULT false;
 
@@ -792,7 +792,7 @@ UPDATE alembic_version SET version_num='d00bc0ffee0b' WHERE alembic_version.vers
     ALTER TABLE athletes ALTER COLUMN person_id SET NOT NULL;
     ALTER TABLE athletes ADD CONSTRAINT fk_athletes_person FOREIGN KEY (person_id) REFERENCES persons(id);
 
-    -- 4) membership -> incluir person/season e chave única por pessoa/temporada/org
+    -- 4) membership -> incluir person/season e chave ·nica por pessoa/temporada/org
     ALTER TABLE membership ADD COLUMN IF NOT EXISTS person_id uuid;
     ALTER TABLE membership ADD COLUMN IF NOT EXISTS season_id uuid;
 
@@ -893,7 +893,7 @@ UPDATE alembic_version SET version_num='d00cc0ffee0c' WHERE alembic_version.vers
 
 -- Running upgrade d00cc0ffee0c -> d00dc0ffee0d
 
--- Seed de roles básicos
+-- Seed de roles bßsicos
     INSERT INTO roles (code, name)
     VALUES
       ('superadmin', 'Super Administrador'),
@@ -903,7 +903,7 @@ UPDATE alembic_version SET version_num='d00cc0ffee0c' WHERE alembic_version.vers
       ('atleta', 'Atleta')
     ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
-    -- Garantir superadmin único (cria se não existir)
+    -- Garantir superadmin ·nico (cria se nÒo existir)
     DO $$
     DECLARE v_person uuid;
     DECLARE v_user uuid;
@@ -917,11 +917,11 @@ UPDATE alembic_version SET version_num='d00cc0ffee0c' WHERE alembic_version.vers
       END IF;
     END$$;
 
-    -- membership: reforçar status e season, índices de unicidade por papel
+    -- membership: reforþar status e season, Ýndices de unicidade por papel
     UPDATE membership SET season_id = season_id WHERE season_id IS NOT NULL;
     ALTER TABLE membership ALTER COLUMN season_id SET NOT NULL;
 
-    -- Índices de unicidade por papel (resolver IDs e criar dinamicamente)
+    -- ═ndices de unicidade por papel (resolver IDs e criar dinamicamente)
     DO $$
     DECLARE r_dir int; r_coord int; r_tre int; r_atl int;
     BEGIN
@@ -952,7 +952,7 @@ UPDATE alembic_version SET version_num='d00dc0ffee0d' WHERE alembic_version.vers
       ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'ativa'
       CHECK (state IN ('ativa','lesionada','dispensada'));
 
-    -- 2) Histórico de estados
+    -- 2) Hist¾rico de estados
     CREATE TABLE IF NOT EXISTS athlete_states (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       athlete_id uuid NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
@@ -1043,7 +1043,7 @@ UPDATE alembic_version SET version_num='d00dc0ffee0d' WHERE alembic_version.vers
     AFTER INSERT ON athlete_states
     FOR EACH ROW EXECUTE FUNCTION trg_athlete_state_dispense_membership();
 
-    -- 3) Seed do histórico para atletas existentes (estado atual = state)
+    -- 3) Seed do hist¾rico para atletas existentes (estado atual = state)
     INSERT INTO athlete_states (athlete_id, state, started_at, notes)
     SELECT a.id, a.state, COALESCE(a.created_at, now()), 'seed auto'
       FROM athletes a
@@ -1056,7 +1056,7 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
 
 -- Running upgrade d00ec0ffee0e -> d00fc0ffee0f
 
--- === Função helper: idade na data (anos completos) ===
+-- === FunþÒo helper: idade na data (anos completos) ===
     CREATE OR REPLACE FUNCTION age_in_years(bdate date, ref date)
     RETURNS int LANGUAGE plpgsql AS $$
     BEGIN
@@ -1067,7 +1067,7 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
     END;
     $$;
 
-    -- === team_registrations: valida idade/categoria (não permitir abaixo do mínimo) ===
+    -- === team_registrations: valida idade/categoria (nÒo permitir abaixo do mÝnimo) ===
     CREATE OR REPLACE FUNCTION trg_team_registrations_age_check() RETURNS trigger AS $$
     DECLARE v_birth date;
     DECLARE v_starts date;
@@ -1080,13 +1080,13 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
       SELECT min_age, max_age INTO v_min, v_max FROM categories WHERE id = NEW.category_id;
       v_age := age_in_years(v_birth, v_starts);
       IF v_age IS NULL THEN
-        RAISE EXCEPTION 'Idade não encontrada para validação de categoria';
+        RAISE EXCEPTION 'Idade nÒo encontrada para validaþÒo de categoria';
       END IF;
       IF v_min IS NOT NULL AND v_age < v_min THEN
-        RAISE EXCEPTION 'Atleta com idade % abaixo do mínimo % da categoria', v_age, v_min;
+        RAISE EXCEPTION 'Atleta com idade % abaixo do mÝnimo % da categoria', v_age, v_min;
       END IF;
       IF v_max IS NOT NULL AND v_age > v_max THEN
-        -- idade acima do máximo é permitida (atuar acima), não bloqueia
+        -- idade acima do mßximo Ú permitida (atuar acima), nÒo bloqueia
         RETURN NEW;
       END IF;
       RETURN NEW;
@@ -1111,7 +1111,7 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
 
       SELECT id INTO v_ath FROM athletes WHERE person_id = NEW.person_id LIMIT 1;
       IF v_ath IS NULL THEN
-        RAISE EXCEPTION 'Nenhum atleta vinculado à pessoa para membership';
+        RAISE EXCEPTION 'Nenhum atleta vinculado Ó pessoa para membership';
       END IF;
 
       SELECT EXISTS (
@@ -1133,11 +1133,11 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
     BEFORE INSERT OR UPDATE ON membership
     FOR EACH ROW EXECUTE FUNCTION trg_membership_require_team();
 
-    -- === Treinos: bloquear edição após 24h da realização ===
+    -- === Treinos: bloquear ediþÒo ap¾s 24h da realizaþÒo ===
     CREATE OR REPLACE FUNCTION trg_training_sessions_lock() RETURNS trigger AS $$
     BEGIN
       IF OLD.session_at IS NOT NULL AND (now() - OLD.session_at) > interval '24 hours' THEN
-        RAISE EXCEPTION 'Treino não pode ser editado após 24h da realização';
+        RAISE EXCEPTION 'Treino nÒo pode ser editado ap¾s 24h da realizaþÒo';
       END IF;
       RETURN NEW;
     END;
@@ -1148,11 +1148,11 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
     BEFORE UPDATE ON training_sessions
     FOR EACH ROW EXECUTE FUNCTION trg_training_sessions_lock();
 
-    -- === Jogos: bloquear edição após finalizado ===
+    -- === Jogos: bloquear ediþÒo ap¾s finalizado ===
     CREATE OR REPLACE FUNCTION trg_matches_lock_finished() RETURNS trigger AS $$
     BEGIN
       IF OLD.status = 'finished' THEN
-        RAISE EXCEPTION 'Jogo finalizado não pode ser alterado';
+        RAISE EXCEPTION 'Jogo finalizado nÒo pode ser alterado';
       END IF;
       RETURN NEW;
     END;
@@ -1163,14 +1163,14 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
     BEFORE UPDATE ON matches
     FOR EACH ROW EXECUTE FUNCTION trg_matches_lock_finished();
 
-    -- === Roster: máximo 16 por jogo e bloquear se jogo finalizado ===
+    -- === Roster: mßximo 16 por jogo e bloquear se jogo finalizado ===
     CREATE OR REPLACE FUNCTION trg_match_roster_constraints() RETURNS trigger AS $$
     DECLARE v_count int;
     DECLARE v_status text;
     BEGIN
       SELECT status INTO v_status FROM matches WHERE id = NEW.match_id;
       IF v_status = 'finished' THEN
-        RAISE EXCEPTION 'Jogo finalizado não aceita alterações de roster';
+        RAISE EXCEPTION 'Jogo finalizado nÒo aceita alteraþ§es de roster';
       END IF;
       SELECT count(*) INTO v_count FROM match_roster WHERE match_id = NEW.match_id;
       IF v_count >= 16 THEN
@@ -1185,14 +1185,14 @@ UPDATE alembic_version SET version_num='d00ec0ffee0e' WHERE alembic_version.vers
     BEFORE INSERT OR UPDATE ON match_roster
     FOR EACH ROW EXECUTE FUNCTION trg_match_roster_constraints();
 
-    -- === Eventos: atleta deve estar no roster e jogo não finalizado ===
+    -- === Eventos: atleta deve estar no roster e jogo nÒo finalizado ===
     CREATE OR REPLACE FUNCTION trg_match_events_constraints() RETURNS trigger AS $$
     DECLARE v_status text;
     DECLARE v_in_roster boolean;
     BEGIN
       SELECT status INTO v_status FROM matches WHERE id = NEW.match_id;
       IF v_status = 'finished' THEN
-        RAISE EXCEPTION 'Jogo finalizado não aceita eventos novos';
+        RAISE EXCEPTION 'Jogo finalizado nÒo aceita eventos novos';
       END IF;
 
       IF NEW.athlete_id IS NOT NULL THEN
@@ -1248,19 +1248,19 @@ UPDATE alembic_version SET version_num='d00fc0ffee0f' WHERE alembic_version.vers
     BEGIN
       IF OLD.session_at IS NOT NULL AND (now() - OLD.session_at) > interval '24 hours' THEN
         IF NEW.admin_note IS NULL THEN
-          RAISE EXCEPTION 'Treino não pode ser editado após 24h da realização (faltou justificativa admin)';
+          RAISE EXCEPTION 'Treino nÒo pode ser editado ap¾s 24h da realizaþÒo (faltou justificativa admin)';
         END IF;
       END IF;
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql;
 
-    -- Matches: exigir justificativa ao mudar status; marcar finalized_at/validated_at; bloquear edição depois de finished (já havia trigger)
+    -- Matches: exigir justificativa ao mudar status; marcar finalized_at/validated_at; bloquear ediþÒo depois de finished (jß havia trigger)
     CREATE OR REPLACE FUNCTION trg_matches_status_controls() RETURNS trigger AS $$
     BEGIN
       IF NEW.status IS DISTINCT FROM OLD.status THEN
         IF NEW.admin_note IS NULL THEN
-          RAISE EXCEPTION 'Mudança de status de jogo requer justificativa em admin_note';
+          RAISE EXCEPTION 'Mudanþa de status de jogo requer justificativa em admin_note';
         END IF;
         IF NEW.status = 'finished' AND OLD.status <> 'finished' THEN
           NEW.finalized_at := COALESCE(NEW.finalized_at, now());
@@ -1276,7 +1276,7 @@ UPDATE alembic_version SET version_num='d00fc0ffee0f' WHERE alembic_version.vers
     BEFORE UPDATE ON matches
     FOR EACH ROW EXECUTE FUNCTION trg_matches_status_controls();
 
-    -- Audit: log de mudanças críticas (match status, treino lock/atualização pós 24h, atleta estado)
+    -- Audit: log de mudanþas crÝticas (match status, treino lock/atualizaþÒo p¾s 24h, atleta estado)
     CREATE OR REPLACE FUNCTION log_audit_event(p_entity text, p_entity_id uuid, p_action text, p_just text, p_context jsonb) RETURNS void AS $$
     BEGIN
       INSERT INTO audit_logs(entity, entity_id, action, justification, context)
@@ -1284,7 +1284,7 @@ UPDATE alembic_version SET version_num='d00fc0ffee0f' WHERE alembic_version.vers
     END;
     $$ LANGUAGE plpgsql;
 
-    -- Log ediÇõÇœo de treino apÇüs 24h (com admin_note)
+    -- Log ediÃ§Ã£o de treino apÃ³s 24h (com admin_note)
     CREATE OR REPLACE FUNCTION trg_training_sessions_audit_late_edit() RETURNS trigger AS $$
     BEGIN
       IF OLD.session_at IS NOT NULL AND (now() - OLD.session_at) > interval '24 hours' THEN
@@ -1352,7 +1352,7 @@ UPDATE alembic_version SET version_num='d010c0ffee10' WHERE alembic_version.vers
     BEGIN
       IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at OR NEW.deleted_reason IS DISTINCT FROM OLD.deleted_reason THEN
         IF NEW.deleted_at IS NOT NULL AND (NEW.admin_note IS NULL OR NEW.deleted_reason IS NULL) THEN
-          RAISE EXCEPTION 'Exclusão lógica de jogo requer admin_note e deleted_reason';
+          RAISE EXCEPTION 'ExclusÒo l¾gica de jogo requer admin_note e deleted_reason';
         END IF;
         PERFORM log_audit_event('match', NEW.id, 'soft_delete', NEW.deleted_reason, jsonb_build_object('deleted_at', NEW.deleted_at));
       END IF;
@@ -1369,7 +1369,7 @@ UPDATE alembic_version SET version_num='d010c0ffee10' WHERE alembic_version.vers
     BEGIN
       IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at OR NEW.deleted_reason IS DISTINCT FROM OLD.deleted_reason THEN
         IF NEW.deleted_at IS NOT NULL AND (NEW.admin_note IS NULL OR NEW.deleted_reason IS NULL) THEN
-          RAISE EXCEPTION 'Exclusão lógica de treino requer admin_note e deleted_reason';
+          RAISE EXCEPTION 'ExclusÒo l¾gica de treino requer admin_note e deleted_reason';
         END IF;
         PERFORM log_audit_event('training_session', NEW.id, 'soft_delete', NEW.deleted_reason, jsonb_build_object('deleted_at', NEW.deleted_at));
       END IF;
@@ -1382,10 +1382,10 @@ UPDATE alembic_version SET version_num='d010c0ffee10' WHERE alembic_version.vers
     BEFORE UPDATE ON training_sessions
     FOR EACH ROW EXECUTE FUNCTION trg_soft_delete_training();
 
-    -- Bloquear DELETE físico (jogos e treinos)
+    -- Bloquear DELETE fÝsico (jogos e treinos)
     CREATE OR REPLACE FUNCTION block_delete() RETURNS trigger AS $$
     BEGIN
-      RAISE EXCEPTION 'Delete físico não permitido; use exclusão lógica (deleted_at/deleted_reason)';
+      RAISE EXCEPTION 'Delete fÝsico nÒo permitido; use exclusÒo l¾gica (deleted_at/deleted_reason)';
     END;
     $$ LANGUAGE plpgsql;
 
@@ -1399,14 +1399,14 @@ UPDATE alembic_version SET version_num='d010c0ffee10' WHERE alembic_version.vers
     BEFORE DELETE ON training_sessions
     FOR EACH ROW EXECUTE FUNCTION block_delete();
 
-    -- Ajuste match_events: admin_note e audit de correção
+    -- Ajuste match_events: admin_note e audit de correþÒo
     ALTER TABLE match_events ADD COLUMN IF NOT EXISTS admin_note text;
 
     CREATE OR REPLACE FUNCTION trg_match_events_correction_audit() RETURNS trigger AS $$
     BEGIN
       IF TG_OP = 'UPDATE' THEN
         IF NEW.admin_note IS NULL THEN
-          RAISE EXCEPTION 'Correção de evento requer admin_note';
+          RAISE EXCEPTION 'CorreþÒo de evento requer admin_note';
         END IF;
         PERFORM log_audit_event('match_event', NEW.id, 'update', NEW.admin_note,
           jsonb_build_object('old', row_to_json(OLD), 'new', row_to_json(NEW)));
@@ -1488,13 +1488,13 @@ UPDATE alembic_version SET version_num='d011c0ffee11' WHERE alembic_version.vers
       );
     END$$;
 
-    -- Função genérica para soft delete auditável
+    -- FunþÒo genÚrica para soft delete auditßvel
     CREATE OR REPLACE FUNCTION trg_soft_delete_generic() RETURNS trigger AS $$
     BEGIN
       IF TG_OP = 'UPDATE' THEN
         IF NEW.deleted_at IS DISTINCT FROM OLD.deleted_at OR NEW.deleted_reason IS DISTINCT FROM OLD.deleted_reason THEN
           IF NEW.deleted_at IS NOT NULL AND NEW.deleted_reason IS NULL THEN
-            RAISE EXCEPTION 'Exclusão lógica requer deleted_reason';
+            RAISE EXCEPTION 'ExclusÒo l¾gica requer deleted_reason';
           END IF;
           PERFORM log_audit_event(TG_TABLE_NAME, NEW.id, 'soft_delete', NEW.deleted_reason, jsonb_build_object('deleted_at', NEW.deleted_at));
         END IF;
@@ -1503,7 +1503,7 @@ UPDATE alembic_version SET version_num='d011c0ffee11' WHERE alembic_version.vers
     END;
     $$ LANGUAGE plpgsql;
 
-    -- Aplicar triggers de soft delete genérica
+    -- Aplicar triggers de soft delete genÚrica
     DROP TRIGGER IF EXISTS trg_soft_delete_persons ON persons;
     CREATE TRIGGER trg_soft_delete_persons
     BEFORE UPDATE ON persons
@@ -1529,7 +1529,7 @@ UPDATE alembic_version SET version_num='d011c0ffee11' WHERE alembic_version.vers
     BEFORE UPDATE ON match_events
     FOR EACH ROW EXECUTE FUNCTION trg_soft_delete_generic();
 
-    -- 4) Bloqueio de DELETE físico nas tabelas adicionais
+    -- 4) Bloqueio de DELETE fÝsico nas tabelas adicionais
     DROP TRIGGER IF EXISTS trg_block_delete_persons ON persons;
     CREATE TRIGGER trg_block_delete_persons
     BEFORE DELETE ON persons
@@ -1562,7 +1562,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
 -- Flag para permitir reabertura de jogo com justificativa
     ALTER TABLE matches ADD COLUMN IF NOT EXISTS allow_reopen boolean NOT NULL DEFAULT false;
 
-    -- Reescrever lock de jogos finalizados: só permite update se allow_reopen=true e admin_note presente
+    -- Reescrever lock de jogos finalizados: s¾ permite update se allow_reopen=true e admin_note presente
     CREATE OR REPLACE FUNCTION trg_matches_lock_finished() RETURNS trigger AS $$
     BEGIN
       IF OLD.status = 'finished' THEN
@@ -1572,7 +1572,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
           END IF;
         ELSE
           IF NEW.allow_reopen IS FALSE OR NEW.admin_note IS NULL THEN
-            RAISE EXCEPTION 'Jogo finalizado não pode ser alterado (exceto reabertura com admin_note)';
+            RAISE EXCEPTION 'Jogo finalizado nÒo pode ser alterado (exceto reabertura com admin_note)';
           END IF;
         END IF;
       END IF;
@@ -1595,7 +1595,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
     BEGIN
       IF NEW.status IS DISTINCT FROM OLD.status THEN
         IF NEW.admin_note IS NULL THEN
-          RAISE EXCEPTION 'Mudança de status de jogo requer admin_note';
+          RAISE EXCEPTION 'Mudanþa de status de jogo requer admin_note';
         END IF;
         IF OLD.status = 'finished' AND NEW.status <> 'finished' THEN
           IF NEW.allow_reopen IS FALSE THEN
@@ -1611,14 +1611,14 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
     END;
     $$ LANGUAGE plpgsql;
 
-    -- Reescrever função genérica de soft delete para auditar reativação (deleted_at volta a NULL)
+    -- Reescrever funþÒo genÚrica de soft delete para auditar reativaþÒo (deleted_at volta a NULL)
     CREATE OR REPLACE FUNCTION trg_soft_delete_generic() RETURNS trigger AS $$
     BEGIN
       IF TG_OP = 'UPDATE' THEN
         IF (NEW.deleted_at IS DISTINCT FROM OLD.deleted_at) OR (NEW.deleted_reason IS DISTINCT FROM OLD.deleted_reason) THEN
           IF NEW.deleted_at IS NOT NULL THEN
             IF NEW.deleted_reason IS NULL THEN
-              RAISE EXCEPTION 'Exclusão lógica requer deleted_reason';
+              RAISE EXCEPTION 'ExclusÒo l¾gica requer deleted_reason';
             END IF;
             PERFORM log_audit_event(TG_TABLE_NAME, NEW.id, 'soft_delete', NEW.deleted_reason, jsonb_build_object('deleted_at', NEW.deleted_at));
           ELSIF OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL THEN
@@ -1630,7 +1630,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
     END;
     $$ LANGUAGE plpgsql;
 
-    -- Auditoria de reativação de membership (status volta a 'ativo')
+    -- Auditoria de reativaþÒo de membership (status volta a 'ativo')
     CREATE OR REPLACE FUNCTION trg_membership_reactivate_audit() RETURNS trigger AS $$
     BEGIN
       IF OLD.status <> 'ativo' AND NEW.status = 'ativo' THEN
@@ -1645,7 +1645,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
     AFTER UPDATE ON membership
     FOR EACH ROW EXECUTE FUNCTION trg_membership_reactivate_audit();
 
-    -- Função helper para app: bloquear operação sem membership ativo (exceto superadmin)
+    -- FunþÒo helper para app: bloquear operaþÒo sem membership ativo (exceto superadmin)
     CREATE OR REPLACE FUNCTION ensure_active_membership(p_user uuid) RETURNS void AS $$
     DECLARE v_super boolean;
     DECLARE v_has_active boolean;
@@ -1663,7 +1663,7 @@ UPDATE alembic_version SET version_num='d012c0ffee12' WHERE alembic_version.vers
       ) INTO v_has_active;
 
       IF NOT v_has_active THEN
-        RAISE EXCEPTION 'Usuário sem vínculo ativo';
+        RAISE EXCEPTION 'Usußrio sem vÝnculo ativo';
       END IF;
     END;
     $$ LANGUAGE plpgsql;;
@@ -2273,6 +2273,62 @@ UPDATE alembic_version SET version_num='d018c0ffee18' WHERE alembic_version.vers
 -- Running upgrade d018c0ffee18 -> 3e2898989f01
 
 UPDATE alembic_version SET version_num='3e2898989f01' WHERE alembic_version.version_num = 'd018c0ffee18';
+
+-- Running upgrade 3e2898989f01 -> d019c0ffee19
+
+-- RF5.1: Canceled timestamp
+        ALTER TABLE public.seasons
+        ADD COLUMN IF NOT EXISTS canceled_at timestamptz;
+
+        -- RF5.2: Interrupted timestamp
+        ALTER TABLE public.seasons
+        ADD COLUMN IF NOT EXISTS interrupted_at timestamptz;
+
+        -- RDB4: Soft delete columns
+        ALTER TABLE public.seasons
+        ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+        ALTER TABLE public.seasons
+        ADD COLUMN IF NOT EXISTS deleted_reason text;
+
+        -- Add comment for documentation
+        COMMENT ON COLUMN public.seasons.canceled_at IS 'RF5.1: Timestamp when season was canceled';
+        COMMENT ON COLUMN public.seasons.interrupted_at IS 'RF5.2: Timestamp when season was interrupted';
+        COMMENT ON COLUMN public.seasons.deleted_at IS 'RDB4: Soft delete timestamp';
+        COMMENT ON COLUMN public.seasons.deleted_reason IS 'RDB4: Reason for soft delete';;
+
+UPDATE alembic_version SET version_num='d019c0ffee19' WHERE alembic_version.version_num = '3e2898989f01';
+
+-- Running upgrade d019c0ffee19 -> d020c0ffee20
+
+ALTER TABLE team_registrations ADD COLUMN start_at DATE;
+
+ALTER TABLE team_registrations ADD COLUMN end_at DATE;
+
+UPDATE team_registrations 
+        SET start_at = COALESCE(created_at::date, CURRENT_DATE) 
+        WHERE start_at IS NULL;
+
+ALTER TABLE team_registrations ALTER COLUMN start_at SET NOT NULL;
+
+ALTER TABLE team_registrations ADD CONSTRAINT ck_team_registrations_date_range_valid CHECK (end_at IS NULL OR start_at <= end_at);
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE team_registrations
+        ADD CONSTRAINT ex_team_registrations_no_overlap
+        EXCLUDE USING gist (
+            athlete_id WITH =,
+            team_id WITH =,
+            season_id WITH =,
+            daterange(start_at, COALESCE(end_at, start_at), '[]') WITH &&
+        );
+
+CREATE INDEX ix_team_registrations_ctx ON team_registrations (athlete_id, team_id, season_id);
+
+CREATE INDEX ix_team_registrations_range ON team_registrations (start_at, end_at);
+
+UPDATE alembic_version SET version_num='d020c0ffee20' WHERE alembic_version.version_num = 'd019c0ffee19';
 
 COMMIT;
 
