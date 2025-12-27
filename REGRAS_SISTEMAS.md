@@ -10,6 +10,287 @@ Sumário
 - [6.1 Esquema técnico (temporadas e jogos)](#61-esquema-técnico-temporadas-e-jogos)
 - [7. Organização das Regras por Camada de Configuração](#7-organizacao-das-regras-por-camada-de-configuracao)
 
+
+# Política de Provisionamento
+
+## Regras Operacionais
+1. Associação organizacional automática
+- Em V1 (clube único), todo novo usuário é automaticamente associado ao clube único, sem exigir seleção de organização no cadastro.
+
+2. Vínculo sazonal na criação
+- Staff (Dirigente, Coordenador, Treinador): criar `membership` ativo na temporada corrente. Não requer equipe na criação (R6, R9).
+- Atleta: criar `membership` ativo na temporada corrente e `team_registration` automático na Equipe Institucional ou Grupo de Avaliação (R38, R39, RDB10).
+
+3. Gating de operação (sem bloquear cadastro)
+- Usuários sem escopo operacional (equipe competitiva ou responsabilidade) “aparecem” no sistema, mas:
+  - Atleta: não participa de jogos/treinos até ter `team_registration` na equipe competitiva vigente e dados críticos (RG/CPF, posição defensiva) completos (RD13, RP10).
+  - Treinador: não consegue operar ações de equipe até ser definido como responsável em uma equipe (RF7).
+  - Coordenador/Dirigente: operam de imediato pelo papel e membership criado.
+- Atleta e usuários sem escopo mantêm acesso conforme R42 (leitura do próprio histórico; sem dados coletivos).
+
+4. Auditoria e integridade
+- Todas as criações de usuário e vínculos automáticos são auditadas (R31–R32, RDB5).
+- Soft delete permanece obrigatório nas tabelas de domínio (RDB4).
+- Categorias da atleta permanecem derivadas por temporada (RD1–RD2) e não são gravadas no perfil global.
+
+## Efeitos Práticos
+- Cadastro de usuário completo sem escolher equipe/organização.
+- O sistema garante os vínculos mínimos nos bastidores (auto-org e Equipe Institucional).
+- Você coloca o usuário em equipe/organização competitiva depois, sem violar as regras.
+
+# Regras de Cadastro do Sistema (compatível com REGRAS_SISTEMAS.md V1.1)
+
+Objetivo
+- Permitir cadastrar usuários (Atleta, Treinador, Coordenador, Dirigente) com ficha completa, sem exigir equipe no momento do cadastro, mantendo 100% de conformidade com o RAG.
+- Garantir que o usuário “apareça” no sistema após o cadastro e que vínculos mínimos sejam criados automaticamente, sem bloquear a criação.
+- Postergar a definição de equipe competitiva para depois do cadastro, com histórico e auditoria preservados.
+
+Referências canônicas
+- RF1 (cadeia de criação), R2/R42 (usuário e vínculo), R33 (regra de ouro), R34 (clube único na V1), R38–R39 (atleta e equipe), RDB10 (team_registrations não sobrepostas), RD1–RD2 (idade/categoria por temporada), RD13 (goleira), R31–R32/RDB5 (auditoria), RDB4 (soft delete), RDB3 (temporal em UTC), RF18 (rascunhos).
+
+Glossário
+- Organização: único clube na V1 (R34).
+- Temporada corrente: temporada cuja data atual está entre `start_date` e `end_date`.
+- Equipe Institucional/Grupo de Avaliação: equipe técnica para atividades sem equipe competitiva (R39).
+- Membership: vínculo pessoa+papel+clube+temporada (R6, R9).
+- Team registration: participação temporal da atleta na equipe na temporada (RDB10).
+
+## 1) Hierarquia e quem pode cadastrar quem (RF1)
+- Dirigente cadastra Coordenadores.
+- Coordenador cadastra Treinadores.
+- Treinador cadastra Atletas.
+- Observações:
+  - O Super Administrador é único e seedado (R3, RDB6); não é cadastrado via fluxo comum.
+  - A criação gera automaticamente o papel correspondente (RF1) e o vínculo mínimo (ver Seção 3).
+
+## 2) Regras gerais de usuário e login (R2, R42)
+- Usuário exige e-mail único, normalizado e verificado para login.
+- Senha obrigatória na criação, com política mínima (8+ caracteres, complexidade configurável).
+- Sem vínculo ativo, usuário não opera (R42); após cadastro, “aparece” no sistema com escopo conforme o papel:
+  - Atleta: leitura do próprio histórico pessoal; sem interação coletiva.
+  - Treinador: sem acesso a equipes até ser vinculado como responsável (RF7).
+  - Coordenador/Dirigente: acesso operacional/administrativo imediato.
+
+## 3) Vínculos automáticos na criação (removendo bloqueios no cadastro)
+Para não bloquear cadastro por falta de equipe, o backend cria vínculos mínimos automaticamente:
+
+- Associação organizacional automática (R2, R34):
+  - Todo novo usuário é associado ao clube único da V1 no momento do cadastro.
+
+- Membership sazonal (R6, R9):
+  - Ao criar um usuário, criar `membership` ativo na temporada corrente:
+    - Staff (Dirigente/Coordenador/Treinador): `membership` ativo sem equipe na criação (papel exclusivo por pessoa; R7).
+    - Atleta: `membership` ativo + `team_registration` automático na Equipe Institucional/Grupo de Avaliação (R38, R39).
+  - Se não houver temporada ativa, usar a planejada mais próxima (RF4/RDB14). Se inexistente, bloquear com alerta crítico para o Dirigente criar a temporada seed (RF4, RDB14).
+
+- Team registration automático da atleta (R38, R39, RDB10):
+  - Criar uma linha vigente de `team_registration` na Equipe Institucional com `start_at = now()`.
+  - Ao mover para equipe competitiva:
+    - Encerrar a linha vigente (setar `end_at`) e criar nova linha para a equipe competitiva.
+    - Garantir que períodos não se sobreponham para a mesma pessoa+equipe+temporada (RDB10).
+
+- Auditoria obrigatória (R31–R32, RDB5):
+  - Registre a criação do usuário e todos os vínculos automáticos: quem (actor_id), quando, ação (`user_create`, `membership_create`, `team_registration_create`), contexto, old/new.
+
+## 4) Ficha de cadastro por papel: campos e validações
+
+### 4.1 Atleta (ficha completa)
+- Obrigatórios no backend/API:
+  - `athlete_name`: 3–100; trim
+  - `birth_date`: data válida
+  - `athlete_rg`: formato e unicidade
+  - `athlete_cpf`: dígitos válidos e unicidade
+  - `athlete_phone`: normalização e validação
+  - `main_defensive_position_id`: FK defensiva
+  - Condicional RD13 (goleira): se `main_defensive_position_id = 5`, `main_offensive_position_id` deve ser NULL (bloqueio); tempo/estatísticas de linha bloqueadas para goleira
+- Opcionais:
+  - `athlete_nickname` (≤50)
+  - `shirt_number` (1–99)
+  - `secondary_defensive_position_id` (FK)
+  - `main_offensive_position_id` (FK condicional)
+  - `secondary_offensive_position_id` (FK)
+  - `athlete_email` (opcional na ficha; não concede login) com índice único parcial case-insensitive quando preenchido
+  - Responsáveis e escolaridade: `guardian_name` (3–100), `guardian_phone`, `schooling_id` (FK)
+  - Endereço: `zip_code` (CEP), `street`, `neighborhood`, `city`, `state` (UF), `address_number`, `address_complement`
+  - `athlete_photo` upload até 5MB; URL derivada no GET
+- Derivados/automáticos:
+  - `registered_at`: setado pelo servidor
+  - `created_at`, `updated_at`: UTC; trigger atualiza `updated_at`
+  - `athlete_age`: não persistir; calculado no GET
+  - `athlete_age_at_registration`: INT calculado por trigger (diff `registered_at` vs `birth_date`)
+  - `category_id`: derivado pela idade no início da temporada e fixado no contexto sazonal (não no perfil global; RD1–RD2)
+
+### 4.2 Treinador
+- Obrigatórios:
+  - `name`, `email` (login), `password`
+- Derivados/automáticos:
+  - `membership` sazonal ativo (sem equipe)
+- Operação:
+  - Só acessa equipes onde for definido responsável (RF7); troca auditável.
+
+### 4.3 Coordenador
+- Obrigatórios:
+  - `name`, `email` (login), `password`
+- Derivados/automáticos:
+  - `membership` sazonal ativo
+- Operação:
+  - Acesso operacional amplo (R26); pode criar treinos/jogos/estatísticas (RF9), reabrir/excluir logicamente jogos (RF15), encerrar participações (RF17).
+
+### 4.4 Dirigente
+- Obrigatórios:
+  - `name`, `email` (login), `password`
+- Derivados/automáticos:
+  - `membership` sazonal ativo
+- Operação:
+  - Acesso administrativo total; pode criar temporadas, equipes, trocar treinador responsável, etc.
+
+### 4.5 Super Administrador (seed)
+- Criado no seed inicial com índice parcial único (RDB6); não removível e imutável (R3).
+- Autoridade máxima; ignora travas operacionais, mas tudo é auditado (R3, R31–R32).
+
+## 5) Regras de validação por camada
+
+### 5.1 Backend
+- Bloqueios e alertas:
+  - Não bloqueie a criação por falta de equipe; crie vínculos mínimos (Seção 3).
+  - Bloqueie ações operacionais quando faltar integridade estrutural (RF20): ex. atleta sem RG/CPF, goleira com ofensiva definida, sem team_registration vigente na equipe competitiva.
+- Derivações:
+  - Categoria por temporada (RD1–RD2) no momento de ativação da atleta na temporada e a cada consulta contextual.
+- Estados esportivos:
+  - Estado inicial “ativa”; mudanças auditáveis; “dispensada” encerra automaticamente participações vigentes (R13 Complemento).
+- Regras de goleira (RD13):
+  - Bloquear `main_offensive_position_id` para goleira; bloquear tempo/estatísticas de linha; goleiro-linha (RD22) só para atletas de linha.
+- Rascunhos:
+  - Permitir salvar rascunhos sem efeito operacional (RF18), visíveis para comissão técnica (RF22), com janela de desfazer/editar (RF27).
+
+### 5.2 Banco de Dados (Neon Postgres/SQL)
+- PKs UUID com `gen_random_uuid()` (RDB1–RDB2).
+- Temporal em UTC (`timestamptz`) (RDB3).
+- Soft delete em tabelas de domínio: `deleted_at` + `deleted_reason`; triggers bloqueiam DELETE físico (RDB4).
+- Auditoria append-only: `audit_logs` com INSERT-only; triggers/rotinas para ações críticas (RDB5, R31–R32, R35).
+- Índices e constraints:
+  - Unicidade de e-mail em `users`: índice único `lower(email)`.
+  - Unicidade de e-mail opcional em `athletes`: índice único parcial `lower(email)` `WHERE email IS NOT NULL`.
+  - `shirt_number` CHECK 1–99.
+  - FKs: posições defensivas/ofensivas, escolaridade, categorias (lookup com PK integer permitido pela allowlist de RDB2.1).
+- Triggers:
+  - `updated_at` BEFORE UPDATE.
+  - `athlete_age_at_registration` ON INSERT/UPDATE (somente quando `registered_at`/`birth_date` mudam).
+  - Jogos finalizados bloqueiam UPDATE; reabertura altera `status=em_revisao` com auditoria (RDB13, RF15).
+
+### 5.3 Front-end
+- Não pedir equipe no cadastro de usuário.
+- Validar campos conforme ficha; aplicar RD13 (ex.: esconder/ofuscar campo ofensivo quando defensivo=Goleira).
+- Exibir categoria calculada (somente leitura) e pendências operacionais (ex.: “mover para equipe competitiva”, “definir treinador responsável”).
+- Notificações críticas bloqueiam ação até leitura/confirm (RF24).
+- Operação offline suportada em jogos com sincronização posterior (RF25).
+
+## 5.3.1 Atualização de obrigatoriedades de cadastro (V1.1.1)
+
+Esta atualização reflete mudanças de obrigatoriedade e comportamento na UI do cadastro, mantendo conformidade com as regras V1.1 (gating por vínculo, derivação sazonal de categoria, auditoria e restrições de goleira).
+
+Atualizações na Ficha da Atleta
+- Obrigatórios (Front-end):
+  - athlete_name: mínimo 3 e máximo 100 caracteres (antes: mínimo 10; ajustar validação da UI).
+  - birth_date: data válida.
+  - athlete_rg: formato válido, único.
+  - athlete_cpf: dígitos válidos, único (normalizar/remover máscara antes de validar).
+  - athlete_phone: normalizar e validar.
+  - main_defensive_position_id: seleção obrigatória (FK defensiva).
+
+- Condicionais (Front-end):
+  - main_offensive_position_id:
+    - Obrigatória quando main_defensive_position_id ≠ 5 (não goleira).
+    - Proibida/oculta quando main_defensive_position_id = 5 (goleira), conforme RD13.
+
+- Opcionais (Front-end):
+  - athlete_nickname (≤50), shirt_number (1–99), secondary_defensive_position_id, secondary_offensive_position_id.
+  - athlete_email: opcional; quando preenchido, índice único case-insensitive (lower(email)).
+  - guardian_name, guardian_phone: opcionais.
+  - schooling_id: opcional.
+  - athlete_photo: upload opcional até 5MB (mime_type whitelist).
+  - Endereço estruturado: zip_code (CEP), street, neighborhood, city, state (UF 2 letras), address_number, address_complement — todos opcionais.
+    - Deprecação: remover campo livre athlete_address; substituir pela estrutura acima com CEP e autopreenchimento.
+
+- Somente leitura / derivados (Front-end):
+  - athlete_age: exibir apenas; calculado no GET (não é input).
+  - category (da temporada): exibir apenas; derivada por idade no início da temporada (RD1–RD2). Não selecionar manualmente na ficha.
+  - athlete_photo_url: exibir apenas; retornar do endpoint após upload; não enviar como input.
+
+- Comportamentos de UI:
+  - Não solicitar equipe no cadastro (mantém provisionamento sem bloqueio; vínculos mínimos criados no backend).
+  - Aplicar bloqueios e ocultação de campos conforme RD13 (goleira).
+  - Exibir pendências operacionais pós-cadastro (ex.: “mover para equipe competitiva”, “definir treinador responsável”).
+  - Validar UF em formato “AA” e preferir autopreenchimento do endereço via CEP, permitindo edição manual.
+
+Atualizações nas Fichas de Staff
+- Treinador, Coordenador e Dirigente:
+  - Obrigatórios: name, email (login), password.
+  - Sem mudanças de obrigatoriedade adicionais no front-end.
+  - Não solicitar equipe no cadastro; operação por vínculo definido posteriormente (RF7 para treinador).
+
+Contrato de API — Campos gerenciados pelo servidor (não enviar no POST)
+- id, registered_at, athlete_age, athlete_age_at_registration, category_id (global), athlete_photo_url, is_active, created_at, updated_at.
+- Upload de foto: multipart/form-data via endpoint; resposta retorna a URL derivada (/athletes/{id}/photo).
+
+Notas de conformidade
+- Categoria é aplicada e exibida no contexto sazonal; não é selecionada nem persistida no perfil global pela UI (RD1–RD2).
+- Operabilidade continua gated por vínculos e dados críticos completos, não por flags de UI (R6–R9, R42).
+
+## 6) Regras de vinculação posterior (após cadastro)
+- Atleta:
+  - Mover para equipe competitiva cria nova `team_registration` e encerra a institucional; sem sobreposição temporal (RDB10).
+  - Estatísticas e histórico preservados após troca (RD87).
+- Treinador:
+  - Definição como responsável pela equipe (RF7), auditável; não altera histórico passado.
+- Coordenador e Dirigente:
+  - Já operacionais; podem criar temporadas, equipes, etc.
+
+## 7) Gating de operação (quando cada item passa a ser exigido)
+- Cadastro (aparecer no sistema): apenas campos obrigatórios do papel + vínculos mínimos automáticos (Seção 3).
+- Operar em equipe:
+  - Atleta: `RG`, `CPF`, `main_defensive_position_id` válidos; RD13 aplicado; `team_registration` vigente na equipe competitiva.
+  - Treinador: deve estar definido como responsável na equipe (RF7).
+- Ação crítica (qualquer papel): auditoria obrigatória (R31–R32).
+- Temporada encerrada: edições só via ação administrativa auditada (R37).
+
+## 8) Exceções e falhas controladas
+- Sem temporada ativa:
+  - Se existir temporada planejada futura, criar `membership` com `start_at` na virada; bloquear operações até início (RF5/6.1.1).
+  - Se não existir temporada, bloquear cadastro com mensagem para Dirigente criar a temporada seed (RDB14).
+- Sem Equipe Institucional configurada:
+  - Bloquear criação de atleta com mensagem para criar a equipe institucional (R39).
+- Conflito de edição simultânea:
+  - Registrar conflito, bloquear sobrescrita, exigir decisão autorizada com auditoria (R41).
+
+## 9) Eventos de auditoria mínimos (ação -> descrição)
+- `user_create`: criação de usuário (person+user).
+- `membership_create`: criação de vínculo sazonal.
+- `team_registration_create`: criação de participação em equipe.
+- `team_registration_close`: encerramento de participação.
+- `user_provision_auto_link`: vínculos automáticos na criação.
+- `role_change`/`membership_reactivate`: transições de papel/vínculo.
+- `athlete_state_change`: mudança de estado da atleta (R13).
+- `game_finalize` / `game_reopen` / `game_soft_delete`: fluxo de jogo (RF15/RDB13).
+- `stat_correction`: correções com `admin_note` (R23–R24, RDB12).
+
+## 10) Checklist de implementação
+- Backend:
+  - POST /users: cria usuário + vínculos automáticos (organizacional, sazonal; atleta -> equipe institucional).
+  - POST /teams/{team_id}/registrations: movimenta atletas entre equipes (encerra anterior, cria nova).
+  - POST /teams/{team_id}/set-coach: define treinador responsável (RF7).
+  - GET /athletes/{id}: deriva idade e categoria por temporada; retorna `photo_url`.
+- DB:
+  - Triggers `updated_at`, `age_at_registration`, bloqueio de `games.status=finalizado`.
+  - `audit_logs` append-only, índices únicos, FKs e CHECKs.
+  - Soft delete nas tabelas de domínio.
+- Front:
+  - Tela de cadastro sem campo de equipe; mostra pendências para operação.
+  - Aplicar RD13 condicional na UI.
+
+Regra-síntese (Cadastro)
+- Cadastre com ficha completa sem equipe; o sistema cria vínculos mínimos automaticamente (clube, temporada, e para atleta, Equipe Institucional), garantindo que o usuário apareça no sistema sem operar fora de vínculo. A operação em equipes competitivas ocorre depois, com histórico, auditoria e integridade preservados.
+
 ## 1. Regras Estruturais
 
 R1. Pessoa  
@@ -635,11 +916,32 @@ Banco PostgreSQL 17 (Neon) com extensão pgcrypto habilitada para uso de gen_ran
 RDB2. Chaves primárias e nomes  
 PKs são UUID com default gen_random_uuid(). Constraints e índices usam nomes semânticos (pk_, fk_, ux_, ix_, ck_, trg_).
 
+RDB2.1. Exceção de PK (allowlist fechada)  
+Tabelas técnicas/lookup/sistema que podem usar integer/smallint como PK:
+- `roles` (lookup de papéis - R4)
+- `categories` (lookup de categorias - R15)
+- `permissions` (lookup de permissões)
+- `role_permissions` (junction table)
+- `alembic_version` (técnica - migrations)
+
+Qualquer tabela fora desta lista é considerada tabela de domínio e DEVE usar UUID com default gen_random_uuid().
+
 RDB3. Timezone e colunas temporais  
 Colunas temporais usam timestamptz em UTC; conversão e exibição são responsabilidade da UI.
 
 RDB4. Exclusão lógica  
-Tabelas-chave usam deleted_at + deleted_reason. deleted_reason é obrigatória quando deleted_at não é null. DELETE físico é bloqueado por trigger.
+Tabelas de domínio usam deleted_at + deleted_reason. deleted_reason é obrigatória quando deleted_at não é null. DELETE físico é bloqueado por trigger.
+
+RDB4.1. Exceção de Soft Delete (allowlist fechada)  
+Tabelas que NÃO requerem deleted_at/deleted_reason:
+- `roles` (lookup imutável)
+- `categories` (lookup imutável)
+- `permissions` (lookup imutável)
+- `role_permissions` (junction table imutável)
+- `alembic_version` (técnica - migrations)
+- `audit_logs` (excluída por RDB5 - append-only, nunca deletada)
+
+Qualquer tabela fora desta lista é tabela de domínio e DEVE implementar soft delete completo.
 
 RDB5. Auditoria imutável  
 audit_logs é append-only: apenas INSERT. UPDATE/DELETE são bloqueados por trigger. Logs registram quem, quando, ação, contexto e old/new.
