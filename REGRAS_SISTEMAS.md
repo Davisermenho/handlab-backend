@@ -479,9 +479,8 @@ Segue R41.
 RF14. Finalização de jogos  
 Jogos podem ser finalizados por dirigentes, coordenadores e treinadores.
 
-RF15. Reabertura e exclusão lógica de jogos (atualização V1.1)  
-Reabertura é permitida apenas pelo Coordenador e sempre via ação administrativa auditada. Ao reabrir, o mesmo registro do jogo retorna ao status “Em Revisão” (sem criação de nova versão/snapshot). As estatísticas deixam de alimentar dashboards até a nova finalização. Exclusão lógica de jogo pode ser feita por Coordenador ou Dirigente, sempre auditada.
-
+RF15. Reabertura e exclusão lógica de jogos
+Reabertura é permitida por Coordenador e Dirigente e sempre via ação administrativa auditada. Ao reabrir, o mesmo registro do jogo retorna ao status “Em Revisão” (sem criação de nova versão/snapshot). As estatísticas deixam de alimentar dashboards até a nova finalização. Exclusão lógica de jogo pode ser feita por Coordenador ou Dirigente, sempre auditada.
 RF16. Alteração do estado da atleta  
 O estado (ativa, lesionada, dispensada) pode ser alterado por dirigentes, coordenadores e treinadores; toda alteração é auditável.
 
